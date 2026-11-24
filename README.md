@@ -7,6 +7,8 @@ burst and showing where the frame time goes, in real time.
 
 Built while chasing frame-time bottlenecks in the GTA VI Xbox 1.0.2.1 title.
 
+![the monitor hooked into a live run](docs/image.png)
+
 ## What it shows
 
 - **Live numbers**: fps, ms/frame, a **bottleneck verdict for the current
