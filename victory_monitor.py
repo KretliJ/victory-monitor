@@ -178,7 +178,7 @@ PRESETS = {
         "VICTORY_CARD_REHASH_RUNS": "1", "VICTORY_COPY_CHANGED": "1",
         "VICTORY_CARD_METER": "1",
     },
-    "Run I (FLAWED - black screen, do not run)": {
+    "Run I (H + COPY_PLAIN, Series X)": {
         "VICTORY_RELAY": "2", "VICTORY_LATE_WAIT": "3", "VICTORY_WIDE_BACK": "1",
         "VICTORY_CARD_BUFFERS_MIN_MB": "1", "VICTORY_CARD_BUFFERS_MB": "1024",
         "VICTORY_TEXTURE_NO_WAIT": "1", "VICTORY_PIPELINE_WAIT_MS": "0",
@@ -187,20 +187,7 @@ PRESETS = {
         "VICTORY_INDIRECT_WINDOW": "1", "VICTORY_INDIRECT_WINDOW_CHECK": "1",
         "VICTORY_CARD_REHASH_RUNS": "1", "VICTORY_COPY_CHANGED": "1",
         "VICTORY_COPY_PLAIN": "1", "VICTORY_CARD_METER": "1",
-        "_console": "series-s",
-    },
-    "Run J (Series S, no COPY_PLAIN - isolates the I failure)": {
-        "VICTORY_RELAY": "2", "VICTORY_LATE_WAIT": "3", "VICTORY_WIDE_BACK": "1",
-        "VICTORY_CARD_BUFFERS_MIN_MB": "1", "VICTORY_CARD_BUFFERS_MB": "1024",
-        "VICTORY_TEXTURE_NO_WAIT": "1", "VICTORY_PIPELINE_WAIT_MS": "0",
-        "VICTORY_JOIN_PARTS": "1", "VICTORY_BACK_OWN_VIEW": "1",
-        "VICTORY_BACK_OWN_CHECK": "1", "VICTORY_INDIRECT_GATHER": "1",
-        "VICTORY_INDIRECT_WINDOW": "1", "VICTORY_INDIRECT_WINDOW_CHECK": "1",
-        "VICTORY_CARD_REHASH_RUNS": "1", "VICTORY_COPY_CHANGED": "1",
-        "VICTORY_CARD_METER": "1",
-        "_console": "series-s",
-    },
-}
+    },}
 
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
@@ -643,11 +630,19 @@ class MonitorGUI:
             self.btn_pick_game.grid(row=1, column=2, padx=(2, 10))
             top.columnconfigure(1, weight=1)
 
-            # console profile
+            # console profile (tooltip explica: o dump precisa ser do console escolhido)
             prof = tk.Frame(top, bg=DARK_BG)
             prof.grid(row=2, column=0, columnspan=3, sticky="w", pady=(2, 0))
-            tk.Label(prof, text="console:", bg=DARK_BG, fg="#7a7f8a",
-                     font=("Consolas", 9)).pack(side=tk.LEFT)
+            lbl = tk.Label(prof, text="console:", bg=DARK_BG, fg="#7a7f8a",
+                     font=("Consolas", 9))
+            lbl.pack(side=tk.LEFT)
+            lbl.bind("<Enter>", lambda e: self.show_tip(e, "console profile",
+                "MUST match your game dump: the title reads the console type "
+                "(registry ConsoleMode 0x64=X, 0x60=S) and only loads the world "
+                "if the dump's assets match. A Series X dump needs series-x; a "
+                "Series S dump needs series-s (mismatches hang at the loading "
+                "screen with 0 draws)."))
+            lbl.bind("<Leave>", lambda e: self.hide_tip())
             self.prof_var = tk.StringVar(value="series-x (default)")
             pm = tk.OptionMenu(prof, self.prof_var, "series-x (default)", "series-s")
             pm.config(bg="#1c1f26", fg=DARK_FG, activebackground="#27506f",
@@ -656,6 +651,12 @@ class MonitorGUI:
             pm["menu"].config(bg="#1c1f26", fg=DARK_FG,
                               activebackground="#27506f", font=("Consolas", 10))
             pm.pack(side=tk.LEFT, padx=6)
+            pm.bind("<Enter>", lambda e: self.show_tip(e, "console profile",
+                "MUST match your game dump (Series X dump = series-x; Series S "
+                "dump = series-s). Mismatch hangs at the loading screen: the "
+                "title waits for console-S assets that a Series X dump does "
+                "not contain."))
+            pm.bind("<Leave>", lambda e: self.hide_tip())
 
     def on_lang_change(self, lang):
         """Troca o idioma: salva a escolha e reconstroi a janela."""
