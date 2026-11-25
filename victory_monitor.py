@@ -178,7 +178,7 @@ STRINGS = {
         "lbl_aux": "auxiliares",
         "lbl_mem": "memoria do jogo",
         "lbl_pipe": "criacao de pipelines",
-        "legend_gpu": "GPU",
+        "legend_gpu": "submit wait (contorno)",
         "legend_copyb": "copy-back",
         "legend_tex": "textures",
         "legend_copies": "copies",
@@ -229,7 +229,7 @@ STRINGS = {
         "lbl_aux": "auxiliary",
         "lbl_mem": "game memory",
         "lbl_pipe": "pipeline creation",
-        "legend_gpu": "GPU",
+        "legend_gpu": "submit wait (outline)",
         "legend_copyb": "copy-back",
         "legend_tex": "textures",
         "legend_copies": "copies",
@@ -989,14 +989,14 @@ class MonitorGUI:
         for i, f in enumerate(fs):
             x = x0 + i * (bw + 1)
             scale = h / maxms
-            # empilhado: resto do frame primeiro (fundo cinza)
+            # empilhado DENTRO do ms medido (issue #1: gpu/submit-wait e sobreposto,
+            # nao um pedaco do frame - antes a barra virava ms + gpu).
             segs = [
-                (f["ms"] - f["prep"] - f["copyb"], "#33363e"),   # resto/submit
-                (f["prep"] - f["tex"] - f["copies"], "#58b46a"),  # prep resto
-                (f["copies"], "#4ea3e0"),
-                (f["tex"], "#b04ec9"),
-                (f["copyb"], "#e0a34e"),
-                (f["gpu"], "#e05a4e"),
+                (f["copies"], "#4ea3e0"),                          # copies up
+                (f["tex"], "#b04ec9"),                             # textures
+                (f["copyb"], "#e0a34e"),                           # copy-back
+                (f["prep"] - f["tex"] - f["copies"], "#58b46a"),   # prep resto (>=0)
+                (f["ms"] - f["prep"] - f["copyb"], "#33363e"),     # resto/submit (>=0)
             ]
             y = h
             for v, color in segs:
@@ -1005,6 +1005,10 @@ class MonitorGUI:
                 hh = min(v * scale, y)
                 y -= hh
                 c.create_rectangle(x, y, x + bw, y + hh, fill=color, width=0)
+            # submit wait (gpu): marcador independente na altura dele - pode exceder ms
+            gpu_h = min(f["gpu"] * scale, h)
+            gy = h - gpu_h
+            c.create_rectangle(x, gy, x + bw, gy + gpu_h, outline="#e05a4e", width=1)
             # linha de 100 ms e de 33 ms
         # grade vertical: uma linha a cada 30 frames
         grid_n = 30
