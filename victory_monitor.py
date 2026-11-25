@@ -135,7 +135,7 @@ FPS_RE = re.compile(
     r"([\d.]+) on the GPU; "
     r"([\d.]+) copying back ([\d.]+) MB\), "
     r"([\d.]+) draws/frame, dropped ([\d.]+) without a host pipeline "
-    r"\(([\d.]+) being made\) and ([\d.]+) indirect"
+    r"\(([\d.]+) being made(?:, ([\d.]+) creating now)?\) and ([\d.]+) indirect"
 )
 
 AUX_PATS = {
@@ -150,6 +150,10 @@ AUX_PATS = {
     "nowait_defer": (re.compile(r"([\d.]+) left for the next refresh"), 0),
     "tex_uploaded": (re.compile(r"(\d+) uploaded so far \((\d+) MB\)"), 0),
     "tex_waiting":  (re.compile(r"uploaded so far \(\d+ MB\), (\d+) waiting"), 0),
+    "c_total":      (re.compile(r"creates: ([\d.]+) started"), 0),
+    "c_overlap":    (re.compile(r"([\d.]+) overlapping"), 0),
+    "c_done":       (re.compile(r"([\d.]+) done"), 0),
+    "c_refused":    (re.compile(r"([\d.]+) stores refused"), 0),
 }
 
 TS_RE = re.compile(r"^(\d{4}-\d\d-\d\d)T(\d\d:\d\d:\d\d)\.(\d+)Z")
@@ -172,6 +176,7 @@ STRINGS = {
         "lbl_queue": "fila de texturas",
         "lbl_aux": "auxiliares",
         "lbl_mem": "memoria do jogo",
+        "lbl_pipe": "criacao de pipelines",
         "legend_gpu": "GPU",
         "legend_copyb": "copy-back",
         "legend_tex": "textures",
@@ -222,6 +227,7 @@ STRINGS = {
         "lbl_queue": "texture queue",
         "lbl_aux": "auxiliary",
         "lbl_mem": "game memory",
+        "lbl_pipe": "pipeline creation",
         "legend_gpu": "GPU",
         "legend_copyb": "copy-back",
         "legend_tex": "textures",
@@ -304,14 +310,16 @@ def parse_line(line, aux):
             aux[key] = float(am.group(1 + gi))
     m = FPS_RE.search(line)
     if m:
-        g = [float(x) for x in m.groups()]
+        g = [float(x) if x is not None else 0.0 for x in m.groups()]
         return {
             "t": line_ts(line),
             "fps": g[0], "ms": g[1],
             "prep": g[2], "copies": g[3], "copies_mb": g[4],
             "tex": g[5], "tex_mb": g[6],
             "gpu": g[7], "copyb": g[8], "copyb_mb": g[9],
-            "draws": g[10], "drop": g[11], "making": g[12], "indirect": g[13],
+            "draws": g[10], "drop": g[11], "making": g[12],
+            "creating_now": g[13],
+            "indirect": g[14],
             "aux": dict(aux),
         }, True
     return None, False
@@ -435,6 +443,9 @@ def summarize(frames, meta):
         "lentos_mediana_ms": med(slow, "ms"),
         "lentos_max_ms": round(max((f["ms"] for f in slow), default=0)),
         "lentos": {k: med(slow, k) for k in ("prep", "tex", "gpu", "copyb", "copies", "drop")},
+        "creating_now": med(frames, "creating_now"),
+        "overlap_janela": aux_last.get("c_overlap", 0),
+        "c_total_janela": aux_last.get("c_total", 0),
         "card_busy": aux_last.get("card_busy", 0),
         "hold_still": aux_last.get("hold_still", 0),
         "tex_refresh": aux_last.get("tex_refresh", 0),
@@ -500,6 +511,7 @@ class MonitorGUI:
         self.var_aux = tk.StringVar(value="-")
         self.var_queue = tk.StringVar(value="-")
         self.var_mem = tk.StringVar(value="-")
+        self.var_pipeline = tk.StringVar(value="-")
         self.build()
         self.root.after(100, self.poll)
 
@@ -578,7 +590,8 @@ class MonitorGUI:
         # switches
         self.swf = tk.LabelFrame(self.sw_inner, text=tr("switches_frame"), bg=DARK_BG, fg=DARK_FG)
         self.swf.pack(fill=tk.X, **pad)
-        self.sw_vars = {}
+        self.sw_vars = {}      # nome -> valor (StringVar do Entry)
+        self.sw_on = {}        # nome -> BooleanVar do checkbox
         self.tip_window = None
         groups = {}
         for k, v, g, d in SWITCH_CATALOG:
@@ -589,19 +602,21 @@ class MonitorGUI:
                                highlightbackground="#2e3340", highlightthickness=1)
             gf.grid(row=gi // 2, column=gi % 2, sticky="nw", padx=6, pady=4, ipadx=4, ipady=2)
             for i, (k, v, d) in enumerate(items):
-                var = tk.StringVar(value=v if v else "")
-                self.sw_vars[k] = var
+                val_var = tk.StringVar(value=v)
+                on_var = tk.BooleanVar(value=bool(v))
+                self.sw_vars[k] = val_var
+                self.sw_on[k] = on_var
                 cell = tk.Frame(gf, bg=DARK_BG)
                 cell.grid(row=i // 2, column=i % 2, sticky="w", padx=4, pady=1)
-                cb = tk.Checkbutton(cell, text=k.replace("VICTORY_", ""), variable=var,
-                           onvalue=v if v else "1", offvalue="",
+                cb = tk.Checkbutton(cell, text=k.replace("VICTORY_", ""), variable=on_var,
+                           command=lambda kk=k: self._on_switch_toggle(kk),
                            bg=DARK_BG, fg=DARK_FG, selectcolor="#1c1f26",
                            activebackground=DARK_BG, activeforeground=DARK_FG
                            )
                 cb.pack(side=tk.LEFT)
                 cb.bind("<Enter>", lambda e, kk=k, dd=d: self.show_tip(e, kk, dd))
                 cb.bind("<Leave>", lambda e: self.hide_tip())
-                ent = tk.Entry(cell, textvariable=var, bg="#1c1f26", fg=DARK_FG,
+                ent = tk.Entry(cell, textvariable=val_var, bg="#1c1f26", fg=DARK_FG,
                      insertbackground=DARK_FG, relief=tk.FLAT, width=6)
                 ent.pack(side=tk.LEFT)
                 ent.bind("<Enter>", lambda e, kk=k, dd=d: self.show_tip(e, kk, dd))
@@ -643,7 +658,7 @@ class MonitorGUI:
         first_cell = True
         for key, label in [("fps", tr("lbl_fps")), ("ms", tr("lbl_ms")), ("top", tr("lbl_top")),
                            ("queue", tr("lbl_queue")), ("aux", tr("lbl_aux")),
-                           ("mem", tr("lbl_mem"))]:
+                           ("mem", tr("lbl_mem")), ("pipe", tr("lbl_pipe"))]:
             if not first_cell:
                 tk.Frame(live, width=1, bg="#2e3340").pack(side=tk.LEFT, fill=tk.Y, padx=4)
             first_cell = False
@@ -655,7 +670,7 @@ class MonitorGUI:
             self.live_label_widgets[key] = lw
             var = {"fps": self.var_fps, "ms": self.var_ms, "top": self.var_top,
                    "queue": self.var_queue, "aux": self.var_aux,
-                   "mem": self.var_mem}[key]
+                   "mem": self.var_mem, "pipe": self.var_pipeline}[key]
             tk.Label(cell, textvariable=var, bg=DARK_BG, fg=DARK_FG,
                      font=("Consolas", 13, "bold")).pack()
         self.var_queue, self.var_aux = self.var_queue, self.var_aux
@@ -694,6 +709,20 @@ class MonitorGUI:
     def _on_mousewheel(self, event):
         self.sw_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
+    def _on_switch_toggle(self, name):
+        """Checkbox desmarcado limpa o campo; marcado com campo vazio restaura o default."""
+        var = self.sw_vars.get(name)
+        on = self.sw_on.get(name)
+        if var is None or on is None:
+            return
+        if not on.get():
+            var.set("")
+        elif var.get() == "":
+            for k, v, _g, _d in SWITCH_CATALOG:
+                if k == name and v:
+                    var.set(v)
+                    break
+
     def show_tip(self, event, name, doc):
         self.hide_tip()
         if not doc:
@@ -731,7 +760,8 @@ class MonitorGUI:
             self.var_game.set(p)
 
     def current_switches(self):
-        return {k: v.get() for k, v in self.sw_vars.items() if v.get()}
+        return {k: self.sw_vars[k].get() for k, on in self.sw_on.items()
+                if on.get() and self.sw_vars[k].get() != ""}
 
     def launch(self):
         exe = self.var_exe.get().strip()
@@ -926,6 +956,12 @@ class MonitorGUI:
             self.var_aux.set(
                 f"busy {aux.get('card_busy', 0):.0f}% | hold {aux.get('hold_still', 0):.0f} ms | "
                 f"refresh {aux.get('tex_refresh', 0):.0f} ms | drop {self.pending['drop']:.0f}"
+            )
+        if self.pending:
+            cn = self.pending.get("creating_now", 0)
+            ov = aux.get("c_overlap", 0)
+            self.var_pipeline.set(
+                f"creating {cn:.0f} agora | overlap {ov:.0f}/janela"
             )
         if is_fps or any(p in line for p in (" ERROR ", "panic", "device removed", "ERRO ao iniciar")):
             self.text.insert(tk.END, line[:240] + "\n")
