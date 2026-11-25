@@ -5,9 +5,7 @@ emulator process** (`victory.exe run <title> --execute`) and reads its stdout
 live — the same text that goes to the log — parsing every per-frame statistics
 burst and showing where the frame time goes, in real time.
 
-Built while chasing frame-time bottlenecks in the GTA VI Xbox 1.0.2.1 title.
-
-![the monitor hooked into a live run](docs/image.png)
+Built while chasing frame-time bottlenecks in the 1.0.2.1 title.
 
 ## What it shows
 
@@ -69,7 +67,7 @@ victory-fork checkout sitting next to the script and the GTA VI dump on `D:`.
 
 Requirements: Python 3.8+ with tkinter, Windows.
 
-## Findings so far (GTA VI 1.0.2.1, RTX 4060 Ti 8 GB)
+## Findings so far (1.0.2.1, RTX 4060 Ti 8 GB)
 
 | run | switches | world (slow-frame median) | top bottleneck |
 |---|---|---|---|
