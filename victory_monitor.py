@@ -89,41 +89,84 @@ def guess_paths():
 
 # (valor default, grupo, tooltip curto)
 SWITCH_CATALOG = [
-    # ---- executados por nos: perf conhecida
-    ("VICTORY_RELAY", "2", "perf", "relay thread lands GPU results beside the submit thread (0 off, 1, 2)"),
-    ("VICTORY_LATE_WAIT", "3", "perf", "submissions fly before the GPU wait lands (0 off, 1, 2=late_exact)"),
-    ("VICTORY_WIDE_BACK", "1", "perf", "shadow snapshots + write compare across several threads"),
-    ("VICTORY_CARD_BUFFERS_MIN_MB", "1", "perf", "smallest title buffer copied into card memory (MB)"),
+    # ---- perf base (validados nas runs A-D)
+    ("VICTORY_RELAY", "2", "perf", "relay thread lands GPU results beside the submit thread"),
+    ("VICTORY_LATE_WAIT", "3", "perf", "submissions fly before the GPU wait lands"),
+    ("VICTORY_WIDE_BACK", "1", "perf", "shadow snapshots + compare across threads"),
+    ("VICTORY_CARD_BUFFERS_MIN_MB", "1", "perf", "smallest title buffer copied to card memory"),
     ("VICTORY_CARD_BUFFERS_MB", "1024", "perf", "max bytes of card-memory buffer copies"),
-    ("VICTORY_TEXTURE_NO_WAIT", "1", "perf", "texture refresh reads via kernel instead of the remap lock"),
-    # ---- fila de pipelines / gargalo atual (drops x pipeline)
-    ("VICTORY_PIPELINE_WAIT_MS", "500", "pipelines", "wait budget per frame for a pipeline being made (ms; 0 = never wait)"),
-    ("VICTORY_PIPELINE_WAIT_SHARED", "1", "pipelines", "budget shared by all threads (0 = per-thread)"),
-    ("VICTORY_CUT_WAITS", "", "pipelines", "cut host lists at memory-value waits (off unless set)"),
-    ("VICTORY_SPLIT_WAITS", "", "pipelines", "hold submission list by list behind unmet waits"),
-    ("VICTORY_QUEUE_WAIT", "", "pipelines", "queues wait for fences (0 = no fence waits)"),
-    ("VICTORY_WAIT_FORCE", "", "pipelines", "a present runs what queues still hold"),
-    # ---- copy-back / leitura de volta
-    ("VICTORY_WIDE_MERGE", "1", "copy-back", "shader writes merged into title memory on several threads"),
-    ("VICTORY_WIDE_REFRESH", "1", "copy-back", "host-copy refreshes run on several threads"),
-    ("VICTORY_CARD_REHASH_RUNS", "1", "copy-back", "re-hash in runs of touching pieces, each hashed once"),
-    ("VICTORY_JOIN_COPIES", "1", "copy-back", "consecutive title-buffer copies become one step"),
-    ("VICTORY_DIRECT_WRITES", "1", "copy-back", "title memory via NtWriteVirtualMemory (skips VirtualQuery)"),
-    # ---- memoria title in-place (experimental)
-    ("VICTORY_INPLACE", "", "memory", "1 = windows of title memory as host heaps (no copy); 2 = buffers too"),
-    ("VICTORY_INPLACE_MB", "", "memory", "max title memory in place at once (bytes/MB)"),
-    # ---- diagnostico
-    ("VICTORY_D3D12_DEBUG", "", "debug", "D3D12 debug layer (names the failing command on device loss)"),
+    ("VICTORY_TEXTURE_NO_WAIT", "1", "perf", "texture refresh via kernel, no remap lock"),
+    ("VICTORY_PIPELINE_WAIT_MS", "500", "pipelines", "wait budget per frame for a pipeline being made (0 = never)"),
+    ("VICTORY_PIPELINE_WAIT_SHARED", "1", "pipelines", "budget shared by all threads"),
+    # ---- fps do fxceless (main novo: 6.0 -> 10.3 fps)
+    ("VICTORY_JOIN_PARTS", "", "fps", "+6%: consecutive list parts become one submission (29 parts -> 9)"),
+    ("VICTORY_BACK_OWN_VIEW", "", "fps", "+9%: shader writes return through the layer's own view (submit 93->81ms)"),
+    ("VICTORY_BACK_OWN_CHECK", "", "fps", "count stores that miss the own-view path (0 in 1.36M)"),
+    ("VICTORY_INDIRECT_GATHER", "", "fps", "indirect records clamped in one pass by offset table (10.3 fps)"),
+    ("VICTORY_INDIRECT_WINDOW_CHECK", "", "fps", "re-clamp every gathered record and compare on the card"),
+    ("VICTORY_CARD_REHASH_RUNS", "1", "fps", "re-hash in runs of touching pieces (with GATHER: 104->97ms)"),
+    ("VICTORY_COPY_CHANGED", "", "fps", "copy refresh sends only 256-byte chunks that differ"),
+    ("VICTORY_CARD_METER_PIPELINES", "", "fps", "card time table by pipeline"),
+    ("VICTORY_FPS_COUNTER", "", "fps", "fps drawn in the top-left of every frame (0 = off)"),
+    ("VICTORY_JOIN_LISTS", "", "fps", "join host lists that follow one another"),
+    ("VICTORY_JOIN_MOST", "", "fps", "join most consecutive parts"),
+    ("VICTORY_ASYNC_SUBMIT", "", "fps", "submissions sent on a submit thread of their own"),
+    ("VICTORY_ASYNC_PRESENT", "", "fps", "presents on their own line (measured: no gain)"),
+    ("VICTORY_QUEUE2", "", "fps", "second copy queue for fetches (3 = with landing MB)"),
+    ("VICTORY_CARD_FETCH_INFLIGHT", "", "fps", "card fetches inside their flights"),
+    ("VICTORY_CARD_FETCH_INFLIGHT_MB", "", "fps", "max bytes of in-flight card fetches"),
+    # ---- memory / in-place
+    ("VICTORY_INPLACE", "", "memory", "1 = windows of title memory as host heaps; 2 = buffers too"),
+    ("VICTORY_INPLACE_MB", "", "memory", "max title memory in place at once"),
+    ("VICTORY_LEVELS_ON_DEMAND", "", "memory", "levels.rpf mapped on demand (was: whole 72GB)"),
+    ("VICTORY_CARD_ROOM_FOR_BUFFERS", "", "memory", "reserve card room for buffers"),
+    ("VICTORY_KEEP_SNAPSHOTS", "", "memory", "keep submission snapshots (256MB default) instead of recopying 1050MB/frame"),
+    ("VICTORY_KEEP_SNAPSHOTS_MB", "256", "memory", "max bytes of kept snapshots"),
+    ("VICTORY_CARD_WINDOWS_MB", "", "memory", "card-side windows of title memory (bus reads per draw)"),
+    # ---- diagnostics
+    ("VICTORY_D3D12_DEBUG", "", "debug", "D3D12 debug layer (names the failing command)"),
     ("VICTORY_D3D12_GBV", "", "debug", "GPU-based validation"),
-    ("VICTORY_D3D12_DRED", "", "debug", "Device Removed Extended Data on crash"),
-    ("VICTORY_COPY_MODE", "", "debug", "log where submission copies go and what limits their rate"),
+    ("VICTORY_D3D12_DRED", "", "debug", "Device Removed Extended Data"),
+    ("VICTORY_COPY_MODE", "", "debug", "log where submission copies go and what limits them"),
     ("VICTORY_GPU_TIMING", "", "debug", "GPU timing of copies/compares"),
     ("VICTORY_TRAIL", "", "debug", "breadcrumb trail for crash reports"),
+    ("VICTORY_FRAME_LOG", "", "debug", "per-frame log of what the frame is made of"),
+    ("VICTORY_CARD_METER", "", "debug", "card busy meter (timestamp pair around every host list)"),
+    ("VICTORY_DRIVER_WATCH", "", "debug", "watch the driver state (0 = off)"),
+    ("VICTORY_PROFILE", "", "debug", "sampling profiler of the layer"),
+    ("VICTORY_SKIP_PIPELINES", "", "debug", "hashes of pipelines to skip (compiler hangs)"),
 ]
 
 DEFAULT_SWITCHES = {name: val for name, val, _g, _d in SWITCH_CATALOG if val}
 SWITCH_GROUP = {name: g for name, val, g, _d in SWITCH_CATALOG}
 SWITCH_DOC = {name: d for name, val, _g, d in SWITCH_CATALOG}
+
+# Presets de experimento: nome -> {switch: valor} (switches fora do preset = OFF)
+PRESETS = {
+    "Run D (baseline)": {
+        "VICTORY_RELAY": "2", "VICTORY_LATE_WAIT": "3", "VICTORY_WIDE_BACK": "1",
+        "VICTORY_CARD_BUFFERS_MIN_MB": "1", "VICTORY_CARD_BUFFERS_MB": "1024",
+        "VICTORY_TEXTURE_NO_WAIT": "1", "VICTORY_PIPELINE_WAIT_MS": "0",
+    },
+    "Run E (fxceless recipe)": {
+        "VICTORY_RELAY": "2", "VICTORY_LATE_WAIT": "3", "VICTORY_WIDE_BACK": "1",
+        "VICTORY_CARD_BUFFERS_MIN_MB": "1", "VICTORY_CARD_BUFFERS_MB": "1024",
+        "VICTORY_TEXTURE_NO_WAIT": "1", "VICTORY_PIPELINE_WAIT_MS": "0",
+        "VICTORY_JOIN_PARTS": "1", "VICTORY_BACK_OWN_VIEW": "1",
+        "VICTORY_BACK_OWN_CHECK": "1", "VICTORY_INDIRECT_GATHER": "1",
+        "VICTORY_INDIRECT_WINDOW_CHECK": "1", "VICTORY_CARD_REHASH_RUNS": "1",
+        "VICTORY_COPY_CHANGED": "1",
+    },
+    "Run G (BKC - best known)": {
+        "VICTORY_RELAY": "2", "VICTORY_LATE_WAIT": "3", "VICTORY_WIDE_BACK": "1",
+        "VICTORY_CARD_BUFFERS_MIN_MB": "1", "VICTORY_CARD_BUFFERS_MB": "1024",
+        "VICTORY_TEXTURE_NO_WAIT": "1", "VICTORY_PIPELINE_WAIT_MS": "0",
+        "VICTORY_JOIN_PARTS": "1", "VICTORY_BACK_OWN_VIEW": "1",
+        "VICTORY_BACK_OWN_CHECK": "1", "VICTORY_INDIRECT_GATHER": "1",
+        "VICTORY_INDIRECT_WINDOW_CHECK": "1", "VICTORY_CARD_REHASH_RUNS": "1",
+        "VICTORY_COPY_CHANGED": "1", "VICTORY_CARD_METER": "1",
+    },
+}
 
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
@@ -155,6 +198,8 @@ AUX_PATS = {
     "c_overlap":    (re.compile(r"([\d.]+) overlapping"), 0),
     "c_done":       (re.compile(r"([\d.]+) done"), 0),
     "c_refused":    (re.compile(r"([\d.]+) stores refused"), 0),
+    "title_card_ms":(re.compile(r"card time of the title's lists by what they bind, per frame over \d+ frames: ([\d.]+) ms"), 0),
+    "title_lists":  (re.compile(r"ms in ([\d.]+) lists of ([\d.]+) kinds"), 0),
 }
 
 TS_RE = re.compile(r"^(\d{4}-\d\d-\d\d)T(\d\d:\d\d:\d\d)\.(\d+)Z")
@@ -165,6 +210,8 @@ STRINGS = {
     "pt-BR": {
         "exe_label": "victory.exe:",
         "game_label": "exe do titulo:",
+        "tab_switches": "Switches",
+        "tab_measure": "Measurements",
         "switches_frame": " switches de ambiente ",
         "btn_launch": "LAUNCH (hook no processo)",
         "btn_attach_latest": "ATTACH ao log mais recente",
@@ -216,6 +263,8 @@ STRINGS = {
     "en-US": {
         "exe_label": "victory.exe:",
         "game_label": "title exe:",
+        "tab_switches": "Switches",
+        "tab_measure": "Measurements",
         "switches_frame": " environment switches ",
         "btn_launch": "LAUNCH (hook the process)",
         "btn_attach_latest": "ATTACH to latest log",
@@ -570,12 +619,34 @@ class MonitorGUI:
         pad = dict(padx=6, pady=4)
 
 
-        # TUDO dentro de uma unica area rolavel (campos, switches, botoes,
-        # numeros, grafico, legenda, log). O scrollbar da janela inteira.
+        # notebook com 2 abas: Switches | Measurements
         holder = tk.Frame(self.root, bg=DARK_BG)
         holder.pack(fill=tk.BOTH, expand=True)
-        self.sw_canvas = tk.Canvas(holder, bg=DARK_BG, highlightthickness=0)
-        sb = tk.Scrollbar(holder, orient=tk.VERTICAL, command=self.sw_canvas.yview)
+
+        # campos de caminho (fixo acima do notebook)
+        top = tk.Frame(self.root, bg=DARK_BG)
+        top.pack(fill=tk.X, **pad)
+        self._build_top(top)
+
+        self.nb = ttk.Notebook(holder)
+        style = ttk.Style()
+        style.theme_use('default')
+        style.configure('Dark.TNotebook', background=DARK_BG, borderwidth=0)
+        style.configure('Dark.TNotebook.Tab', background="#1c1f26", fg=DARK_FG,
+                        padding=[14, 6], font=("Consolas", 10))
+        style.map('Dark.TNotebook.Tab', background=[('selected', '#2e3340')],
+                  fg=[('selected', ACCENT)])
+        style.configure('Dark.TFrame', background=DARK_BG)
+        self.nb.configure(style='Dark.TNotebook')
+        self.nb.pack(fill=tk.BOTH, expand=True)
+
+        # ---- ABA 1: SWITCHES
+        tab_sw = tk.Frame(self.nb, bg=DARK_BG)
+        self.nb.add(tab_sw, text=tr("tab_switches"))
+        sw_holder = tk.Frame(tab_sw, bg=DARK_BG)
+        sw_holder.pack(fill=tk.BOTH, expand=True)
+        self.sw_canvas = tk.Canvas(sw_holder, bg=DARK_BG, highlightthickness=0)
+        sb = tk.Scrollbar(sw_holder, orient=tk.VERTICAL, command=self.sw_canvas.yview)
         self.sw_canvas.configure(yscrollcommand=sb.set)
         sb.pack(side=tk.RIGHT, fill=tk.Y)
         self.sw_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -584,11 +655,6 @@ class MonitorGUI:
         self.sw_inner.bind("<Configure>", self._on_sw_inner_configure)
         self.sw_canvas.bind("<Configure>", self._on_sw_canvas_configure)
         self.sw_canvas.bind_all("<MouseWheel>", self._on_mousewheel)
-
-        # campos de caminho
-        top = tk.Frame(self.sw_inner, bg=DARK_BG)
-        top.pack(fill=tk.X, **pad)
-        self._build_top(top)
 
         # switches
         self.swf = tk.LabelFrame(self.sw_inner, text=tr("switches_frame"), bg=DARK_BG, fg=DARK_FG)
@@ -626,7 +692,7 @@ class MonitorGUI:
                 ent.bind("<Leave>", lambda e: self.hide_tip())
             gi += 1
 
-        # botoes
+        # botoes (aba switches)
         btns = tk.Frame(self.sw_inner, bg=DARK_BG)
         btns.pack(fill=tk.X, **pad)
         self.btn_launch = tk.Button(btns, text=tr("btn_launch"),
@@ -643,6 +709,17 @@ class MonitorGUI:
                                   fg=DARK_FG, activebackground="#633434",
                                   relief=tk.FLAT, padx=10, state=tk.DISABLED)
         self.btn_stop.pack(side=tk.LEFT, **pad)
+        tk.Label(btns, text="preset:", bg=DARK_BG, fg="#7a7f8a",
+                 font=("Consolas", 9)).pack(side=tk.LEFT, padx=(10, 2))
+        self.preset_var = tk.StringVar(value="(choose)")
+        self.preset_menu = tk.OptionMenu(btns, self.preset_var, *sorted(PRESETS.keys()),
+                                         command=self.apply_preset)
+        self.preset_menu.config(bg="#1c1f26", fg=DARK_FG, activebackground="#27506f",
+                                activeforeground=DARK_FG, relief=tk.FLAT,
+                                highlightthickness=0, font=("Consolas", 10))
+        self.preset_menu["menu"].config(bg="#1c1f26", fg=DARK_FG,
+                                        activebackground="#27506f", font=("Consolas", 10))
+        self.preset_menu.pack(side=tk.LEFT)
         self.btn_compare = tk.Button(btns, text=tr("btn_compare"), command=self.compare,
                                      bg="#26452e", fg=DARK_FG, activebackground="#33593c",
                                      relief=tk.FLAT, padx=10)
@@ -653,8 +730,12 @@ class MonitorGUI:
         self.btn_attach_latest_w = btns.winfo_children()[1]
         self.btn_attach_pick_w = btns.winfo_children()[2]
 
+        # ---- ABA 2: MEASUREMENTS
+        tab_me = tk.Frame(self.nb, bg=DARK_BG)
+        self.nb.add(tab_me, text=tr("tab_measure"))
+
         # numeros ao vivo
-        live = tk.Frame(self.sw_inner, bg=DARK_BG)
+        live = tk.Frame(tab_me, bg=DARK_BG)
         live.pack(fill=tk.X, **pad)
         self.live_labels = {}
         self.live_label_widgets = {}
@@ -679,12 +760,12 @@ class MonitorGUI:
         self.var_queue, self.var_aux = self.var_queue, self.var_aux
 
         # grafico
-        self.canvas = tk.Canvas(self.sw_inner, height=240, bg="#0d0f14", highlightthickness=0)
+        self.canvas = tk.Canvas(tab_me, height=240, bg="#0d0f14", highlightthickness=0)
         self.canvas.pack(fill=tk.X, **pad)
         self.canvas.bind("<Configure>", lambda e: self.redraw())
 
         # legenda
-        leg = tk.Frame(self.sw_inner, bg=DARK_BG)
+        leg = tk.Frame(tab_me, bg=DARK_BG)
         leg.pack(fill=tk.X, **pad)
         for color, name in [("#e05a4e", tr("legend_gpu")), ("#e0a34e", tr("legend_copyb")),
                             ("#b04ec9", tr("legend_tex")), ("#4ea3e0", tr("legend_copies")),
@@ -746,6 +827,21 @@ class MonitorGUI:
         if self.tip_window:
             self.tip_window.destroy()
             self.tip_window = None
+
+    def apply_preset(self, name):
+        """Aplica um preset: marca os switches do preset com seus valores,
+        desmarca todos os outros. Entrys vazios ficam vazios."""
+        if name not in PRESETS:
+            return
+        wanted = PRESETS[name]
+        for k, var in self.sw_vars.items():
+            if k in wanted:
+                self.sw_on[k].set(True)
+                var.set(wanted[k])
+            else:
+                self.sw_on[k].set(False)
+                var.set("")
+        self.var_status.set(f"preset: {name} ({len(wanted)} switches)")
 
     # ------------------------------------------------------------ acoes
     def pick_exe(self):
@@ -963,9 +1059,9 @@ class MonitorGUI:
         if self.pending:
             names = self.pending.get("creating_names", 0)
             att = self.pending.get("creating_attempts", 0)
-            ov = aux.get("c_overlap", 0)
+            tcm = aux.get("title_card_ms", 0)
             self.var_pipeline.set(
-                f"{names:.0f} nomes/{att:.0f} tent. | overlap {ov:.0f}/janela"
+                f"{names:.0f}/{att:.0f} criando | card titulo {tcm:.0f} ms"
             )
         if is_fps or any(p in line for p in (" ERROR ", "panic", "device removed", "ERRO ao iniciar")):
             self.text.insert(tk.END, line[:240] + "\n")
