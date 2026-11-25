@@ -37,7 +37,12 @@ def proc_commit_mb(pid):
             ["powershell", "-NoProfile", "-Command",
              f"(Get-Process -Id {pid} -ErrorAction Stop | "
              "Select-Object PagedMemorySize64,PeakPagedMemorySize64 | ConvertTo-Json)"],
-            capture_output=True, text=True, timeout=8)
+            capture_output=True, text=True, timeout=8,
+            encoding="utf-8", errors="replace",
+            env={**os.environ, "POWERSHELL_TELEMETRY_OPTOUT": "1",
+                 "PYTHONIOENCODING": "utf-8"})
+        if not r.stdout:
+            return None
         d = json.loads(r.stdout)
         return (d["PagedMemorySize64"] / 1e6, d["PeakPagedMemorySize64"] / 1e6)
     except Exception:
@@ -82,14 +87,43 @@ def guess_paths():
             break
     return exe, game
 
-DEFAULT_SWITCHES = {
-    "VICTORY_RELAY": "2",
-    "VICTORY_LATE_WAIT": "3",
-    "VICTORY_WIDE_BACK": "1",
-    "VICTORY_CARD_BUFFERS_MIN_MB": "1",
-    "VICTORY_CARD_BUFFERS_MB": "1024",
-    "VICTORY_TEXTURE_NO_WAIT": "1",
-}
+# (valor default, grupo, tooltip curto)
+SWITCH_CATALOG = [
+    # ---- executados por nos: perf conhecida
+    ("VICTORY_RELAY", "2", "perf", "relay thread lands GPU results beside the submit thread (0 off, 1, 2)"),
+    ("VICTORY_LATE_WAIT", "3", "perf", "submissions fly before the GPU wait lands (0 off, 1, 2=late_exact)"),
+    ("VICTORY_WIDE_BACK", "1", "perf", "shadow snapshots + write compare across several threads"),
+    ("VICTORY_CARD_BUFFERS_MIN_MB", "1", "perf", "smallest title buffer copied into card memory (MB)"),
+    ("VICTORY_CARD_BUFFERS_MB", "1024", "perf", "max bytes of card-memory buffer copies"),
+    ("VICTORY_TEXTURE_NO_WAIT", "1", "perf", "texture refresh reads via kernel instead of the remap lock"),
+    # ---- fila de pipelines / gargalo atual (drops x pipeline)
+    ("VICTORY_PIPELINE_WAIT_MS", "500", "pipelines", "wait budget per frame for a pipeline being made (ms; 0 = never wait)"),
+    ("VICTORY_PIPELINE_WAIT_SHARED", "1", "pipelines", "budget shared by all threads (0 = per-thread)"),
+    ("VICTORY_CUT_WAITS", "", "pipelines", "cut host lists at memory-value waits (off unless set)"),
+    ("VICTORY_SPLIT_WAITS", "", "pipelines", "hold submission list by list behind unmet waits"),
+    ("VICTORY_QUEUE_WAIT", "", "pipelines", "queues wait for fences (0 = no fence waits)"),
+    ("VICTORY_WAIT_FORCE", "", "pipelines", "a present runs what queues still hold"),
+    # ---- copy-back / leitura de volta
+    ("VICTORY_WIDE_MERGE", "1", "copy-back", "shader writes merged into title memory on several threads"),
+    ("VICTORY_WIDE_REFRESH", "1", "copy-back", "host-copy refreshes run on several threads"),
+    ("VICTORY_CARD_REHASH_RUNS", "1", "copy-back", "re-hash in runs of touching pieces, each hashed once"),
+    ("VICTORY_JOIN_COPIES", "1", "copy-back", "consecutive title-buffer copies become one step"),
+    ("VICTORY_DIRECT_WRITES", "1", "copy-back", "title memory via NtWriteVirtualMemory (skips VirtualQuery)"),
+    # ---- memoria title in-place (experimental)
+    ("VICTORY_INPLACE", "", "memory", "1 = windows of title memory as host heaps (no copy); 2 = buffers too"),
+    ("VICTORY_INPLACE_MB", "", "memory", "max title memory in place at once (bytes/MB)"),
+    # ---- diagnostico
+    ("VICTORY_D3D12_DEBUG", "", "debug", "D3D12 debug layer (names the failing command on device loss)"),
+    ("VICTORY_D3D12_GBV", "", "debug", "GPU-based validation"),
+    ("VICTORY_D3D12_DRED", "", "debug", "Device Removed Extended Data on crash"),
+    ("VICTORY_COPY_MODE", "", "debug", "log where submission copies go and what limits their rate"),
+    ("VICTORY_GPU_TIMING", "", "debug", "GPU timing of copies/compares"),
+    ("VICTORY_TRAIL", "", "debug", "breadcrumb trail for crash reports"),
+]
+
+DEFAULT_SWITCHES = {name: val for name, val, _g, _d in SWITCH_CATALOG if val}
+SWITCH_GROUP = {name: g for name, val, g, _d in SWITCH_CATALOG}
+SWITCH_DOC = {name: d for name, val, _g, d in SWITCH_CATALOG}
 
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
@@ -365,7 +399,8 @@ class ProcSource(threading.Thread):
         except PermissionError:
             try:
                 subprocess.run(["taskkill", "/PID", str(self.proc.pid), "/F"],
-                               capture_output=True, timeout=10)
+                               capture_output=True, timeout=10,
+                               text=True, encoding="utf-8", errors="replace")
             except Exception:
                 pass
         except OSError:
@@ -442,7 +477,7 @@ ACCENT = "#5ab4f0"
 class MonitorGUI:
     def __init__(self, root):
         self.root = root
-        root.title("Victory monitor - hook no processo")
+        root.title("Victory monitor")
         root.configure(bg=DARK_BG)
         self.q = queue.Queue()
         self.stop_event = threading.Event()
@@ -469,6 +504,42 @@ class MonitorGUI:
         self.root.after(100, self.poll)
 
     # ---------------------------------------------------------- interface
+    def _build_top(self, top):
+            guess_exe, guess_game = guess_paths()
+
+            # seletor de idioma
+            lang_cell = tk.Frame(top, bg=DARK_BG)
+            lang_cell.grid(row=0, column=3, rowspan=2, padx=(10, 0), sticky="ne")
+            tk.Label(lang_cell, text="idioma / language", bg=DARK_BG, fg="#7a7f8a",
+                     font=("Consolas", 8)).pack(anchor="e")
+            self.lang_var = tk.StringVar(value=T)
+            langs = ["pt-BR", "en-US"]
+            self.lang_menu = tk.OptionMenu(
+                lang_cell, self.lang_var, *langs, command=self.on_lang_change)
+            self.lang_menu.config(bg="#1c1f26", fg=DARK_FG, activebackground="#27506f",
+                                  activeforeground=DARK_FG, relief=tk.FLAT,
+                                  highlightthickness=0, font=("Consolas", 10))
+            self.lang_menu["menu"].config(bg="#1c1f26", fg=DARK_FG,
+                                          activebackground="#27506f", font=("Consolas", 10))
+            self.lang_menu.pack(anchor="e")
+
+            tk.Label(top, text=tr("exe_label"), bg=DARK_BG, fg=DARK_FG).grid(row=0, column=0, sticky="w")
+            self.var_exe = tk.StringVar(value=guess_exe)
+            tk.Entry(top, textvariable=self.var_exe, width=52, bg="#1c1f26", fg=DARK_FG,
+                     insertbackground=DARK_FG, relief=tk.FLAT).grid(row=0, column=1, padx=4, sticky="we")
+            self.btn_pick_exe = tk.Button(top, text="...", command=self.pick_exe, bg="#26304a", fg=DARK_FG,
+                      relief=tk.FLAT, width=3)
+            self.btn_pick_exe.grid(row=0, column=2, padx=(2, 10))
+
+            tk.Label(top, text=tr("game_label"), bg=DARK_BG, fg=DARK_FG).grid(row=1, column=0, sticky="w")
+            self.var_game = tk.StringVar(value=guess_game)
+            tk.Entry(top, textvariable=self.var_game, width=52, bg="#1c1f26", fg=DARK_FG,
+                     insertbackground=DARK_FG, relief=tk.FLAT).grid(row=1, column=1, padx=4, sticky="we")
+            self.btn_pick_game = tk.Button(top, text="...", command=self.pick_game, bg="#26304a", fg=DARK_FG,
+                      relief=tk.FLAT, width=3)
+            self.btn_pick_game.grid(row=1, column=2, padx=(2, 10))
+            top.columnconfigure(1, weight=1)
+
     def on_lang_change(self, lang):
         """Troca o idioma: salva a escolha e reconstroi a janela."""
         global T
@@ -483,63 +554,62 @@ class MonitorGUI:
     def build(self):
         pad = dict(padx=6, pady=4)
 
-        top = tk.Frame(self.root, bg=DARK_BG)
+
+        # TUDO dentro de uma unica area rolavel (campos, switches, botoes,
+        # numeros, grafico, legenda, log). O scrollbar da janela inteira.
+        holder = tk.Frame(self.root, bg=DARK_BG)
+        holder.pack(fill=tk.BOTH, expand=True)
+        self.sw_canvas = tk.Canvas(holder, bg=DARK_BG, highlightthickness=0)
+        sb = tk.Scrollbar(holder, orient=tk.VERTICAL, command=self.sw_canvas.yview)
+        self.sw_canvas.configure(yscrollcommand=sb.set)
+        sb.pack(side=tk.RIGHT, fill=tk.Y)
+        self.sw_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.sw_inner = tk.Frame(self.sw_canvas, bg=DARK_BG)
+        self.sw_canvas.create_window((0, 0), window=self.sw_inner, anchor="nw", tags="inner")
+        self.sw_inner.bind("<Configure>", self._on_sw_inner_configure)
+        self.sw_canvas.bind("<Configure>", self._on_sw_canvas_configure)
+        self.sw_canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+
+        # campos de caminho
+        top = tk.Frame(self.sw_inner, bg=DARK_BG)
         top.pack(fill=tk.X, **pad)
-        guess_exe, guess_game = guess_paths()
-
-        # seletor de idioma
-        lang_cell = tk.Frame(top, bg=DARK_BG)
-        lang_cell.grid(row=0, column=3, rowspan=2, padx=(10, 0), sticky="ne")
-        tk.Label(lang_cell, text="idioma / language", bg=DARK_BG, fg="#7a7f8a",
-                 font=("Consolas", 8)).pack(anchor="e")
-        self.lang_var = tk.StringVar(value=T)
-        langs = ["pt-BR", "en-US"]
-        self.lang_menu = tk.OptionMenu(
-            lang_cell, self.lang_var, *langs, command=self.on_lang_change)
-        self.lang_menu.config(bg="#1c1f26", fg=DARK_FG, activebackground="#27506f",
-                              activeforeground=DARK_FG, relief=tk.FLAT,
-                              highlightthickness=0, font=("Consolas", 10))
-        self.lang_menu["menu"].config(bg="#1c1f26", fg=DARK_FG,
-                                      activebackground="#27506f", font=("Consolas", 10))
-        self.lang_menu.pack(anchor="e")
-
-        tk.Label(top, text=tr("exe_label"), bg=DARK_BG, fg=DARK_FG).grid(row=0, column=0, sticky="w")
-        self.var_exe = tk.StringVar(value=guess_exe)
-        tk.Entry(top, textvariable=self.var_exe, width=52, bg="#1c1f26", fg=DARK_FG,
-                 insertbackground=DARK_FG, relief=tk.FLAT).grid(row=0, column=1, padx=4, sticky="we")
-        self.btn_pick_exe = tk.Button(top, text="...", command=self.pick_exe, bg="#26304a", fg=DARK_FG,
-                  relief=tk.FLAT, width=3)
-        self.btn_pick_exe.grid(row=0, column=2, padx=(2, 10))
-
-        tk.Label(top, text=tr("game_label"), bg=DARK_BG, fg=DARK_FG).grid(row=1, column=0, sticky="w")
-        self.var_game = tk.StringVar(value=guess_game)
-        tk.Entry(top, textvariable=self.var_game, width=52, bg="#1c1f26", fg=DARK_FG,
-                 insertbackground=DARK_FG, relief=tk.FLAT).grid(row=1, column=1, padx=4, sticky="we")
-        self.btn_pick_game = tk.Button(top, text="...", command=self.pick_game, bg="#26304a", fg=DARK_FG,
-                  relief=tk.FLAT, width=3)
-        self.btn_pick_game.grid(row=1, column=2, padx=(2, 10))
-        top.columnconfigure(1, weight=1)
+        self._build_top(top)
 
         # switches
-        self.swf = tk.LabelFrame(self.root, text=tr("switches_frame"), bg=DARK_BG, fg=DARK_FG)
+        self.swf = tk.LabelFrame(self.sw_inner, text=tr("switches_frame"), bg=DARK_BG, fg=DARK_FG)
         self.swf.pack(fill=tk.X, **pad)
         self.sw_vars = {}
-        col = 0
-        for k, v in DEFAULT_SWITCHES.items():
-            var = tk.StringVar(value=v)
-            self.sw_vars[k] = var
-            cell = tk.Frame(self.swf, bg=DARK_BG)
-            cell.grid(row=col // 3, column=col % 3, sticky="w", padx=8, pady=2)
-            tk.Checkbutton(cell, text=k, variable=var, onvalue=v, offvalue="",
+        self.tip_window = None
+        groups = {}
+        for k, v, g, d in SWITCH_CATALOG:
+            groups.setdefault(g, []).append((k, v, d))
+        gi = 0
+        for gname, items in groups.items():
+            gf = tk.LabelFrame(self.swf, text=f" {gname} ", bg=DARK_BG, fg="#7a7f8a",
+                               highlightbackground="#2e3340", highlightthickness=1)
+            gf.grid(row=gi // 2, column=gi % 2, sticky="nw", padx=6, pady=4, ipadx=4, ipady=2)
+            for i, (k, v, d) in enumerate(items):
+                var = tk.StringVar(value=v if v else "")
+                self.sw_vars[k] = var
+                cell = tk.Frame(gf, bg=DARK_BG)
+                cell.grid(row=i // 2, column=i % 2, sticky="w", padx=4, pady=1)
+                cb = tk.Checkbutton(cell, text=k.replace("VICTORY_", ""), variable=var,
+                           onvalue=v if v else "1", offvalue="",
                            bg=DARK_BG, fg=DARK_FG, selectcolor="#1c1f26",
                            activebackground=DARK_BG, activeforeground=DARK_FG
-                           ).pack(side=tk.LEFT)
-            tk.Entry(cell, textvariable=var, bg="#1c1f26", fg=DARK_FG,
-                     insertbackground=DARK_FG, relief=tk.FLAT, width=7).pack(side=tk.LEFT)
-            col += 1
+                           )
+                cb.pack(side=tk.LEFT)
+                cb.bind("<Enter>", lambda e, kk=k, dd=d: self.show_tip(e, kk, dd))
+                cb.bind("<Leave>", lambda e: self.hide_tip())
+                ent = tk.Entry(cell, textvariable=var, bg="#1c1f26", fg=DARK_FG,
+                     insertbackground=DARK_FG, relief=tk.FLAT, width=6)
+                ent.pack(side=tk.LEFT)
+                ent.bind("<Enter>", lambda e, kk=k, dd=d: self.show_tip(e, kk, dd))
+                ent.bind("<Leave>", lambda e: self.hide_tip())
+            gi += 1
 
         # botoes
-        btns = tk.Frame(self.root, bg=DARK_BG)
+        btns = tk.Frame(self.sw_inner, bg=DARK_BG)
         btns.pack(fill=tk.X, **pad)
         self.btn_launch = tk.Button(btns, text=tr("btn_launch"),
                                     command=self.launch, bg="#1d3a55", fg=DARK_FG,
@@ -566,13 +636,17 @@ class MonitorGUI:
         self.btn_attach_pick_w = btns.winfo_children()[2]
 
         # numeros ao vivo
-        live = tk.Frame(self.root, bg=DARK_BG)
+        live = tk.Frame(self.sw_inner, bg=DARK_BG)
         live.pack(fill=tk.X, **pad)
         self.live_labels = {}
         self.live_label_widgets = {}
+        first_cell = True
         for key, label in [("fps", tr("lbl_fps")), ("ms", tr("lbl_ms")), ("top", tr("lbl_top")),
                            ("queue", tr("lbl_queue")), ("aux", tr("lbl_aux")),
                            ("mem", tr("lbl_mem"))]:
+            if not first_cell:
+                tk.Frame(live, width=1, bg="#2e3340").pack(side=tk.LEFT, fill=tk.Y, padx=4)
+            first_cell = False
             cell = tk.Frame(live, bg=DARK_BG)
             cell.pack(side=tk.LEFT, expand=True, fill=tk.X)
             lw = tk.Label(cell, text=label, bg=DARK_BG, fg="#7a7f8a",
@@ -587,12 +661,12 @@ class MonitorGUI:
         self.var_queue, self.var_aux = self.var_queue, self.var_aux
 
         # grafico
-        self.canvas = tk.Canvas(self.root, height=240, bg="#0d0f14", highlightthickness=0)
-        self.canvas.pack(fill=tk.BOTH, expand=True, **pad)
+        self.canvas = tk.Canvas(self.sw_inner, height=240, bg="#0d0f14", highlightthickness=0)
+        self.canvas.pack(fill=tk.X, **pad)
         self.canvas.bind("<Configure>", lambda e: self.redraw())
 
         # legenda
-        leg = tk.Frame(self.root, bg=DARK_BG)
+        leg = tk.Frame(self.sw_inner, bg=DARK_BG)
         leg.pack(fill=tk.X, **pad)
         for color, name in [("#e05a4e", tr("legend_gpu")), ("#e0a34e", tr("legend_copyb")),
                             ("#b04ec9", tr("legend_tex")), ("#4ea3e0", tr("legend_copies")),
@@ -601,10 +675,45 @@ class MonitorGUI:
             tk.Label(leg, text=name + "   ", fg=DARK_FG, bg=DARK_BG).pack(side=tk.LEFT)
 
         # texto (log bruto filtrado + compare)
-        self.text = tk.Text(self.root, height=10, bg="#0d0f14", fg="#9aa0aa",
+        self.text = tk.Text(self.sw_inner, height=10, bg="#0d0f14", fg="#9aa0aa",
                             insertbackground=DARK_FG, relief=tk.FLAT,
                             font=("Consolas", 9))
-        self.text.pack(fill=tk.BOTH, expand=True, **pad)
+        self.text.pack(fill=tk.X, **pad)
+
+    def _on_sw_inner_configure(self, event):
+        self.sw_canvas.configure(scrollregion=self.sw_canvas.bbox("all"))
+        self._fit_sw_height()
+
+    def _on_sw_canvas_configure(self, event):
+        self.sw_canvas.itemconfigure("inner", width=event.width)
+
+    def _fit_sw_height(self):
+        self.sw_canvas.update_idletasks()
+        self.sw_canvas.configure(height=self.sw_inner.winfo_reqheight())
+
+    def _on_mousewheel(self, event):
+        self.sw_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    def show_tip(self, event, name, doc):
+        self.hide_tip()
+        if not doc:
+            return
+        x = event.x_root + 12
+        y = event.y_root + 12
+        self.tip_window = tw = tk.Toplevel(self.root)
+        tw.wm_overrideredirect(True)
+        tw.wm_geometry(f"+{x}+{y}")
+        tf = tk.Frame(tw, bg="#2a2f3a", padx=6, pady=4)
+        tf.pack()
+        tk.Label(tf, text=name, bg="#2a2f3a", fg=ACCENT,
+                 font=("Consolas", 9, "bold")).pack(anchor="w")
+        tk.Label(tf, text=doc, bg="#2a2f3a", fg=DARK_FG, wraplength=420,
+                 justify=tk.LEFT, font=("Consolas", 9)).pack(anchor="w")
+
+    def hide_tip(self):
+        if self.tip_window:
+            self.tip_window.destroy()
+            self.tip_window = None
 
     # ------------------------------------------------------------ acoes
     def pick_exe(self):
@@ -738,6 +847,7 @@ class MonitorGUI:
         except queue.Empty:
             pass
         self.watchdog()
+        self.redraw()
         self.root.after(120, self.poll)
 
     def watchdog(self):
@@ -856,6 +966,11 @@ class MonitorGUI:
                 y -= hh
                 c.create_rectangle(x, y, x + bw, y + hh, fill=color, width=0)
             # linha de 100 ms e de 33 ms
+        # grade vertical: uma linha a cada 30 frames
+        grid_n = 30
+        for gi in range(1, n // grid_n + 1):
+            gx = x0 + gi * grid_n * (bw + 1)
+            c.create_line(gx, 0, gx, h, fill="#23262e")
         for ms_, color in [(100, "#3d5a3d"), (33.3, "#2a4a5a")]:
             y = h - ms_ * (h / maxms)
             c.create_line(x0, y, w, y, fill=color, dash=(2, 4))
