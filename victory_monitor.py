@@ -178,7 +178,7 @@ PRESETS = {
         "VICTORY_CARD_REHASH_RUNS": "1", "VICTORY_COPY_CHANGED": "1",
         "VICTORY_CARD_METER": "1",
     },
-    "Run I (H no Series S + COPY_PLAIN)": {
+    "Run I (FLAWED - black screen, do not run)": {
         "VICTORY_RELAY": "2", "VICTORY_LATE_WAIT": "3", "VICTORY_WIDE_BACK": "1",
         "VICTORY_CARD_BUFFERS_MIN_MB": "1", "VICTORY_CARD_BUFFERS_MB": "1024",
         "VICTORY_TEXTURE_NO_WAIT": "1", "VICTORY_PIPELINE_WAIT_MS": "0",
@@ -187,6 +187,17 @@ PRESETS = {
         "VICTORY_INDIRECT_WINDOW": "1", "VICTORY_INDIRECT_WINDOW_CHECK": "1",
         "VICTORY_CARD_REHASH_RUNS": "1", "VICTORY_COPY_CHANGED": "1",
         "VICTORY_COPY_PLAIN": "1", "VICTORY_CARD_METER": "1",
+        "_console": "series-s",
+    },
+    "Run J (Series S, no COPY_PLAIN - isolates the I failure)": {
+        "VICTORY_RELAY": "2", "VICTORY_LATE_WAIT": "3", "VICTORY_WIDE_BACK": "1",
+        "VICTORY_CARD_BUFFERS_MIN_MB": "1", "VICTORY_CARD_BUFFERS_MB": "1024",
+        "VICTORY_TEXTURE_NO_WAIT": "1", "VICTORY_PIPELINE_WAIT_MS": "0",
+        "VICTORY_JOIN_PARTS": "1", "VICTORY_BACK_OWN_VIEW": "1",
+        "VICTORY_BACK_OWN_CHECK": "1", "VICTORY_INDIRECT_GATHER": "1",
+        "VICTORY_INDIRECT_WINDOW": "1", "VICTORY_INDIRECT_WINDOW_CHECK": "1",
+        "VICTORY_CARD_REHASH_RUNS": "1", "VICTORY_COPY_CHANGED": "1",
+        "VICTORY_CARD_METER": "1",
         "_console": "series-s",
     },
 }
