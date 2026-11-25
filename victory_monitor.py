@@ -166,6 +166,27 @@ PRESETS = {
         "VICTORY_INDIRECT_WINDOW_CHECK": "1", "VICTORY_CARD_REHASH_RUNS": "1",
         "VICTORY_COPY_CHANGED": "1", "VICTORY_CARD_METER": "1",
     },
+    "Run H (BKC + INDIRECT_WINDOW, Series X)": {
+        "VICTORY_RELAY": "2", "VICTORY_LATE_WAIT": "3", "VICTORY_WIDE_BACK": "1",
+        "VICTORY_CARD_BUFFERS_MIN_MB": "1", "VICTORY_CARD_BUFFERS_MB": "1024",
+        "VICTORY_TEXTURE_NO_WAIT": "1", "VICTORY_PIPELINE_WAIT_MS": "0",
+        "VICTORY_JOIN_PARTS": "1", "VICTORY_BACK_OWN_VIEW": "1",
+        "VICTORY_BACK_OWN_CHECK": "1", "VICTORY_INDIRECT_GATHER": "1",
+        "VICTORY_INDIRECT_WINDOW": "1", "VICTORY_INDIRECT_WINDOW_CHECK": "1",
+        "VICTORY_CARD_REHASH_RUNS": "1", "VICTORY_COPY_CHANGED": "1",
+        "VICTORY_CARD_METER": "1",
+    },
+    "Run I (H no Series S)": {
+        "VICTORY_RELAY": "2", "VICTORY_LATE_WAIT": "3", "VICTORY_WIDE_BACK": "1",
+        "VICTORY_CARD_BUFFERS_MIN_MB": "1", "VICTORY_CARD_BUFFERS_MB": "1024",
+        "VICTORY_TEXTURE_NO_WAIT": "1", "VICTORY_PIPELINE_WAIT_MS": "0",
+        "VICTORY_JOIN_PARTS": "1", "VICTORY_BACK_OWN_VIEW": "1",
+        "VICTORY_BACK_OWN_CHECK": "1", "VICTORY_INDIRECT_GATHER": "1",
+        "VICTORY_INDIRECT_WINDOW": "1", "VICTORY_INDIRECT_WINDOW_CHECK": "1",
+        "VICTORY_CARD_REHASH_RUNS": "1", "VICTORY_COPY_CHANGED": "1",
+        "VICTORY_CARD_METER": "1",
+        "_console": "series-s",
+    },
 }
 
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
@@ -413,7 +434,7 @@ class LogSource(threading.Thread):
 class ProcSource(threading.Thread):
     """Inicia o jogo e le o stdout dele ao vivo."""
 
-    def __init__(self, exe, game_exe, switches, out_queue, stop_event, on_exit, cwd=None):
+    def __init__(self, exe, game_exe, switches, out_queue, stop_event, on_exit, cwd=None, console=None):
         super().__init__(daemon=True)
         self.switches = switches
         self.exe = exe
@@ -422,14 +443,19 @@ class ProcSource(threading.Thread):
         self.stop_event = stop_event
         self.on_exit = on_exit
         self.cwd = cwd
+        self.console = console
         self.proc = None
 
     def run(self):
         env = dict(os.environ)
         env.update(self.switches)
+        args = [self.exe, "run", self.game_exe]
+        if self.console and "series-s" in self.console:
+            args += ["--console", "series-s"]
+        args.append("--execute")
         try:
             self.proc = subprocess.Popen(
-                [self.exe, "run", self.game_exe, "--execute"],
+                args,
                 cwd=self.cwd, env=env,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, encoding="utf-8", errors="replace",
@@ -830,10 +856,12 @@ class MonitorGUI:
 
     def apply_preset(self, name):
         """Aplica um preset: marca os switches do preset com seus valores,
-        desmarca todos os outros. Entrys vazios ficam vazios."""
+        desmarca todos os outros. _console no preset seta o profile."""
         if name not in PRESETS:
             return
         wanted = PRESETS[name]
+        if "_console" in wanted:
+            self.prof_var.set(wanted["_console"])
         for k, var in self.sw_vars.items():
             if k in wanted:
                 self.sw_on[k].set(True)
@@ -841,7 +869,8 @@ class MonitorGUI:
             else:
                 self.sw_on[k].set(False)
                 var.set("")
-        self.var_status.set(f"preset: {name} ({len(wanted)} switches)")
+        n = len([k for k in wanted if not k.startswith("_")])
+        self.var_status.set(f"preset: {name} ({n} switches)")
 
     # ------------------------------------------------------------ acoes
     def pick_exe(self):
@@ -885,7 +914,10 @@ class MonitorGUI:
         os.makedirs(LOG_DIR, exist_ok=True)
         self.meta = {"quando": stamp, "fonte": "launch", "switches": sw, "log": self.log_path}
         self.log_file = open(self.log_path, "w", encoding="utf-8")
-        self.source = ProcSource(exe, game, sw, self.q, self.stop_event, self.on_source_exit, cwd)
+        prof = self.prof_var.get()
+        console = "series-s" if "series-s" in prof else None
+        self.meta["console"] = console or "series-x"
+        self.source = ProcSource(exe, game, sw, self.q, self.stop_event, self.on_source_exit, cwd, console)
         self.source.start()
         self.btn_stop.config(state=tk.NORMAL)
         self.btn_launch.config(state=tk.DISABLED)
