@@ -107,6 +107,7 @@ SWITCH_CATALOG = [
     ("VICTORY_INDIRECT_WINDOW_CHECK", "", "fps", "re-clamp every gathered record and compare on the card"),
     ("VICTORY_CARD_REHASH_RUNS", "1", "fps", "re-hash in runs of touching pieces (with GATHER: 104->97ms)"),
     ("VICTORY_COPY_CHANGED", "", "fps", "copy refresh sends only 256-byte chunks that differ"),
+    ("VICTORY_COPY_PLAIN", "", "fps", "title-memory copies as rep movsb w/ kernel fallback (issue 1149: the one switch worth turning on)"),
     ("VICTORY_CARD_METER_PIPELINES", "", "fps", "card time table by pipeline"),
     ("VICTORY_FPS_COUNTER", "", "fps", "fps drawn in the top-left of every frame (0 = off)"),
     ("VICTORY_JOIN_LISTS", "", "fps", "join host lists that follow one another"),
@@ -177,7 +178,7 @@ PRESETS = {
         "VICTORY_CARD_REHASH_RUNS": "1", "VICTORY_COPY_CHANGED": "1",
         "VICTORY_CARD_METER": "1",
     },
-    "Run I (H no Series S)": {
+    "Run I (H no Series S + COPY_PLAIN)": {
         "VICTORY_RELAY": "2", "VICTORY_LATE_WAIT": "3", "VICTORY_WIDE_BACK": "1",
         "VICTORY_CARD_BUFFERS_MIN_MB": "1", "VICTORY_CARD_BUFFERS_MB": "1024",
         "VICTORY_TEXTURE_NO_WAIT": "1", "VICTORY_PIPELINE_WAIT_MS": "0",
@@ -185,7 +186,7 @@ PRESETS = {
         "VICTORY_BACK_OWN_CHECK": "1", "VICTORY_INDIRECT_GATHER": "1",
         "VICTORY_INDIRECT_WINDOW": "1", "VICTORY_INDIRECT_WINDOW_CHECK": "1",
         "VICTORY_CARD_REHASH_RUNS": "1", "VICTORY_COPY_CHANGED": "1",
-        "VICTORY_CARD_METER": "1",
+        "VICTORY_COPY_PLAIN": "1", "VICTORY_CARD_METER": "1",
         "_console": "series-s",
     },
 }
