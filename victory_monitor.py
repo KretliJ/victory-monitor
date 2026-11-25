@@ -135,7 +135,8 @@ FPS_RE = re.compile(
     r"([\d.]+) on the GPU; "
     r"([\d.]+) copying back ([\d.]+) MB\), "
     r"([\d.]+) draws/frame, dropped ([\d.]+) without a host pipeline "
-    r"\(([\d.]+) being made(?:, ([\d.]+) creating now)?\) and ([\d.]+) indirect"
+    r"\(([\d.]+) being made(?:; ([\d.]+) names, ([\d.]+) attempts creating now"
+    r"(?:, ([\d.]+) creating now)?)?\) and ([\d.]+) indirect"
 )
 
 AUX_PATS = {
@@ -318,8 +319,9 @@ def parse_line(line, aux):
             "tex": g[5], "tex_mb": g[6],
             "gpu": g[7], "copyb": g[8], "copyb_mb": g[9],
             "draws": g[10], "drop": g[11], "making": g[12],
-            "creating_now": g[13],
-            "indirect": g[14],
+            "creating_names": g[13] or 0.0,
+            "creating_attempts": g[14] or 0.0,
+            "indirect": g[15],
             "aux": dict(aux),
         }, True
     return None, False
@@ -443,7 +445,8 @@ def summarize(frames, meta):
         "lentos_mediana_ms": med(slow, "ms"),
         "lentos_max_ms": round(max((f["ms"] for f in slow), default=0)),
         "lentos": {k: med(slow, k) for k in ("prep", "tex", "gpu", "copyb", "copies", "drop")},
-        "creating_now": med(frames, "creating_now"),
+        "creating_names": med(frames, "creating_names"),
+        "creating_attempts": med(frames, "creating_attempts"),
         "overlap_janela": aux_last.get("c_overlap", 0),
         "c_total_janela": aux_last.get("c_total", 0),
         "card_busy": aux_last.get("card_busy", 0),
@@ -958,10 +961,11 @@ class MonitorGUI:
                 f"refresh {aux.get('tex_refresh', 0):.0f} ms | drop {self.pending['drop']:.0f}"
             )
         if self.pending:
-            cn = self.pending.get("creating_now", 0)
+            names = self.pending.get("creating_names", 0)
+            att = self.pending.get("creating_attempts", 0)
             ov = aux.get("c_overlap", 0)
             self.var_pipeline.set(
-                f"creating {cn:.0f} agora | overlap {ov:.0f}/janela"
+                f"{names:.0f} nomes/{att:.0f} tent. | overlap {ov:.0f}/janela"
             )
         if is_fps or any(p in line for p in (" ERROR ", "panic", "device removed", "ERRO ao iniciar")):
             self.text.insert(tk.END, line[:240] + "\n")
