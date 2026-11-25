@@ -103,6 +103,7 @@ SWITCH_CATALOG = [
     ("VICTORY_BACK_OWN_VIEW", "", "fps", "+9%: shader writes return through the layer's own view (submit 93->81ms)"),
     ("VICTORY_BACK_OWN_CHECK", "", "fps", "count stores that miss the own-view path (0 in 1.36M)"),
     ("VICTORY_INDIRECT_GATHER", "", "fps", "indirect records clamped in one pass by offset table (10.3 fps)"),
+    ("VICTORY_INDIRECT_WINDOW", "1", "fps", "indirect commands clamped per window (cuts clamp passes ~2x)"),
     ("VICTORY_INDIRECT_WINDOW_CHECK", "", "fps", "re-clamp every gathered record and compare on the card"),
     ("VICTORY_CARD_REHASH_RUNS", "1", "fps", "re-hash in runs of touching pieces (with GATHER: 104->97ms)"),
     ("VICTORY_COPY_CHANGED", "", "fps", "copy refresh sends only 256-byte chunks that differ"),
@@ -1214,7 +1215,13 @@ def main():
         check_mode()
         return
     root = tk.Tk()
-    root.geometry("1100x760")
+    try:
+        from ctypes import windll
+        windll.shcore.SetProcessDpiAwareness(1)
+    except Exception:
+        pass
+    root.geometry("1280x860")
+    root.state("zoomed")  # abre maximizada
     MonitorGUI(root)
     root.mainloop()
 
