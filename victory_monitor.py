@@ -178,7 +178,7 @@ PRESETS = {
         "VICTORY_CARD_REHASH_RUNS": "1", "VICTORY_COPY_CHANGED": "1",
         "VICTORY_CARD_METER": "1",
     },
-    "Run I (H + COPY_PLAIN, Series X)": {
+    "Run I (FLAWED - crash 7min, do not run)": {
         "VICTORY_RELAY": "2", "VICTORY_LATE_WAIT": "3", "VICTORY_WIDE_BACK": "1",
         "VICTORY_CARD_BUFFERS_MIN_MB": "1", "VICTORY_CARD_BUFFERS_MB": "1024",
         "VICTORY_TEXTURE_NO_WAIT": "1", "VICTORY_PIPELINE_WAIT_MS": "0",
