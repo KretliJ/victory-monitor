@@ -630,6 +630,20 @@ class MonitorGUI:
             self.btn_pick_game.grid(row=1, column=2, padx=(2, 10))
             top.columnconfigure(1, weight=1)
 
+            # console profile
+            prof = tk.Frame(top, bg=DARK_BG)
+            prof.grid(row=2, column=0, columnspan=3, sticky="w", pady=(2, 0))
+            tk.Label(prof, text="console:", bg=DARK_BG, fg="#7a7f8a",
+                     font=("Consolas", 9)).pack(side=tk.LEFT)
+            self.prof_var = tk.StringVar(value="series-x (default)")
+            pm = tk.OptionMenu(prof, self.prof_var, "series-x (default)", "series-s")
+            pm.config(bg="#1c1f26", fg=DARK_FG, activebackground="#27506f",
+                      activeforeground=DARK_FG, relief=tk.FLAT,
+                      highlightthickness=0, font=("Consolas", 10))
+            pm["menu"].config(bg="#1c1f26", fg=DARK_FG,
+                              activebackground="#27506f", font=("Consolas", 10))
+            pm.pack(side=tk.LEFT, padx=6)
+
     def on_lang_change(self, lang):
         """Troca o idioma: salva a escolha e reconstroi a janela."""
         global T
