@@ -210,6 +210,14 @@ PRESETS = {
         "VICTORY_COPY_PLAIN": "1", "VICTORY_CARD_METER": "1",
         "VICTORY_D3D12_DEBUG": "1", "VICTORY_D3D12_DRED": "1",
     },
+    "Run A (7900XTX fork, preset K adaptado - 12 switches)": {
+        "VICTORY_RELAY": "2", "VICTORY_LATE_WAIT": "3", "VICTORY_WIDE_BACK": "1",
+        "VICTORY_CARD_BUFFERS_MIN_MB": "1", "VICTORY_CARD_BUFFERS_MB": "1536",
+        "VICTORY_TEXTURE_NO_WAIT": "1", "VICTORY_PIPELINE_WAIT_MS": "0",
+        "VICTORY_JOIN_PARTS": "1", "VICTORY_INDIRECT_WINDOW": "1",
+        "VICTORY_CARD_REHASH_RUNS": "1",
+        "VICTORY_D3D12_DEBUG": "1", "VICTORY_D3D12_DRED": "1",
+    },
 }
 
 
