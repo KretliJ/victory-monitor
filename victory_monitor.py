@@ -61,6 +61,8 @@ def guess_paths():
     exe = game = ""
     base = os.path.dirname(APP_DIR)  # pasta que contem a pasta do monitor
     for cand in [
+        os.path.join(APP_DIR, "VIctory-7900XTX", "target", "diag", "victory.exe"),
+        os.path.join(base, "VIctory-7900XTX", "target", "diag", "victory.exe"),
         os.path.join(APP_DIR, "victory-fork", "target", "release", "victory.exe"),
         os.path.join(base, "victory-fork", "target", "release", "victory.exe"),
     ]:
@@ -68,9 +70,13 @@ def guess_paths():
             exe = cand
             break
     toml_dirs = [
+        os.path.join(APP_DIR, "VIctory-7900XTX"),
+        os.path.join(base, "VIctory-7900XTX"),
         os.path.join(APP_DIR, "victory-fork"),
         os.path.join(base, "victory-fork"),
     ]
+    # dump padrao conhecido (D:/Leonida) se nenhum toml tiver game_dir
+    fallback_game = "D:/Leonida/GTA6.Xbox.v1.0.2.1-BuildToRun/game_scarlett_master.exe"
     for d in toml_dirs:
         t = os.path.join(d, "victory.toml")
         if os.path.exists(t):
@@ -85,6 +91,8 @@ def guess_paths():
                 if not game:
                     game = gd
             break
+    if not game and os.path.exists(fallback_game):
+        game = fallback_game
     return exe, game
 
 # (valor default, grupo, tooltip curto)
